@@ -1,0 +1,37 @@
+{
+  "name": "pmcp",
+  "version": "1.0.0",
+  "description": "Project MCP Manager - dynamically manage project-level MCP server configs for Claude Code (.mcp.json) and OpenCode (opencode.json)",
+  "main": "src/index.js",
+  "bin": {
+    "pmcp": "./src/index.js"
+  },
+  "files": [
+    "src/",
+    "README_ZH.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "setup": "npm install -g .",
+    "teardown": "npm uninstall -g pmcp",
+    "verify": "pmcp --version",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "claude-code",
+    "opencode",
+    "cli",
+    "project-config"
+  ],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "commander": "^15.0.0",
+    "prompts": "^2.4.2"
+  }
+}

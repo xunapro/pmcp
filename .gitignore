@@ -1,0 +1,6 @@
+node_modules/
+*.tgz
+
+# local per-machine agent/MCP configs (may contain API keys) — never commit
+.mcp.json
+opencode.json
