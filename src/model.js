@@ -16,7 +16,7 @@ function clone(value) {
 
 // Canonical definitions (registry single source of truth) come in two shapes:
 //   local   { command, args?, env? }
-//   remote  { url, type }  (type is the Claude Code vocabulary: http | sse | ws)
+//   remote  { url, type, headers? }  (type is the Claude Code vocabulary: http | sse | ws; headers preserved for auth)
 function classify(def, key) {
   if (!def || typeof def !== 'object') return 'invalid';
   const type = typeof def.type === 'string' ? def.type : null;
@@ -56,7 +56,9 @@ function canonicalOf(def, key) {
     return canonical;
   }
   const type = key === 'opencode' ? simpleRemoteType(def.url) : def.type === 'streamable-http' ? 'http' : def.type;
-  return { url: def.url, type };
+  const canonical = { url: def.url, type };
+  if (def.headers && typeof def.headers === 'object') canonical.headers = clone(def.headers);
+  return canonical;
 }
 
 function toCanonicalFromClaude(def) {
@@ -69,7 +71,11 @@ function toCanonicalFromOpencode(def) {
 
 // Client-specific definitions are generated on the fly from the canonical entry at save time.
 function canonicalToClaude(entry) {
-  if (isRemoteEntry(entry)) return { type: entry.type, url: entry.url };
+  if (isRemoteEntry(entry)) {
+    const def = { type: entry.type, url: entry.url };
+    if (entry.headers && typeof entry.headers === 'object') def.headers = clone(entry.headers);
+    return def;
+  }
   const def = { command: entry.command };
   if (Array.isArray(entry.args) && entry.args.length > 0) def.args = clone(entry.args);
   if (entry.env && typeof entry.env === 'object') def.env = clone(entry.env);
@@ -77,7 +83,11 @@ function canonicalToClaude(entry) {
 }
 
 function canonicalToOpencode(entry) {
-  if (isRemoteEntry(entry)) return { type: 'remote', url: entry.url, enabled: true };
+  if (isRemoteEntry(entry)) {
+    const def = { type: 'remote', url: entry.url, enabled: true };
+    if (entry.headers && typeof entry.headers === 'object') def.headers = clone(entry.headers);
+    return def;
+  }
   const def = { type: 'local', command: [entry.command, ...(Array.isArray(entry.args) ? entry.args : [])], enabled: true };
   if (entry.env && typeof entry.env === 'object') def.environment = clone(entry.env);
   return def;
@@ -101,6 +111,7 @@ function registryEntryToFile(entry) {
   if (isRemoteEntry(entry)) {
     out.url = entry.url;
     out.type = entry.type;
+    if (entry.headers && typeof entry.headers === 'object') out.headers = entry.headers;
     return out;
   }
   if (entry.command !== undefined) out.command = entry.command;
