@@ -5,8 +5,9 @@ const path = require('path');
 const prompts = require('prompts');
 
 const { t, resolveLanguage } = require('./i18n');
-const { toCanonicalFromClaude, toCanonicalFromOpencode, canonicalToClaude, registryEntryToFile } = require('./model');
+const { toCanonicalFromClaude, toCanonicalFromOpencode, registryEntryToFile, sameLaunchDef } = require('./model');
 const { writeJsonObject } = require('./persistence');
+const { readGlobalFile, collectGlobalEntries, collectProjectEntries } = require('./sources');
 
 function registryFilePath(home) {
   return path.join(home, '.pmcp', 'registry.json');
@@ -59,61 +60,94 @@ function loadRegistry(home, notices) {
   return entries;
 }
 
-function readGlobalFile(filePath, notices) {
-  let raw;
-  try {
-    raw = fs.readFileSync(filePath, 'utf8');
-  } catch (err) {
-    if (err.code === 'ENOENT') return null;
-    notices.push(t('global.readFail', { path: filePath, message: err.message }));
-    return null;
-  }
-  try {
-    const parsed = JSON.parse(raw);
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
-    notices.push(t('global.notObject', { path: filePath }));
-    return null;
-  } catch {
-    notices.push(t('global.invalidJson', { path: filePath }));
-    return null;
-  }
-}
-
-function collectGlobalEntries(home, notices) {
-  let available = 0;
-  let unconvertible = 0;
-  const byId = new Map();
-  const claudeCfg = readGlobalFile(path.join(home, '.claude.json'), notices);
-  if (claudeCfg !== null) available++;
-  const claudeSection = claudeCfg && claudeCfg.mcpServers;
-  if (claudeSection && typeof claudeSection === 'object' && !Array.isArray(claudeSection)) {
-    for (const [id, def] of Object.entries(claudeSection)) {
-      if (!byId.has(id)) byId.set(id, {});
-      byId.get(id).claude = def && typeof def === 'object' ? def : null;
-    }
-  }
-  const ocCfg = readGlobalFile(path.join(home, '.config', 'opencode', 'opencode.json'), notices);
-  if (ocCfg !== null) available++;
-  const ocSection = ocCfg && ocCfg.mcp;
-  if (ocSection && typeof ocSection === 'object' && !Array.isArray(ocSection)) {
-    for (const [id, def] of Object.entries(ocSection)) {
-      if (!byId.has(id)) byId.set(id, {});
-      byId.get(id).opencode = def && typeof def === 'object' ? def : null;
-    }
-  }
-  const entries = [];
-  for (const [id, defs] of byId) {
-    // On same-id conflicts the Claude Code source wins; OpenCode only fills missing ids.
-    let canonical = defs.claude ? toCanonicalFromClaude(defs.claude) : null;
-    if (!canonical && defs.opencode) canonical = toCanonicalFromOpencode(defs.opencode);
-    if (!canonical) {
-      unconvertible++;
-      notices.push(t('global.skipUnconvertible', { id }));
+async function mergeIntoRegistry(doc, entries, promptOverride) {
+  let added = 0;
+  let updated = 0;
+  let skippedChanges = 0;
+  for (const entry of entries) {
+    const idx = doc.findIndex((e) => e.id === entry.id);
+    if (idx === -1) {
+      doc.push(entry);
+      added++;
       continue;
     }
-    entries.push({ id, name: id, description: t('global.importedDesc'), ...canonical });
+    if (sameLaunchDef(doc[idx], entry)) continue;
+    const yes = await promptOverride(entry.id);
+    if (yes === true) {
+      doc[idx] = entry;
+      updated++;
+    } else {
+      skippedChanges++;
+    }
   }
-  return { entries, available, unconvertible };
+  return { added, updated, skippedChanges };
+}
+
+async function registerToRegistry(projectDir, home, selectSide) {
+  resolveLanguage(home);
+  const notices = [];
+  let collected;
+  try {
+    collected = collectProjectEntries(projectDir, notices);
+  } catch (err) {
+    for (const n of notices) console.warn(t('note.prefix') + n);
+    console.error(t('error.prefix') + err.message);
+    process.exitCode = 1;
+    return;
+  }
+  if (collected.entries.length === 0 && collected.conflicts.length === 0) {
+    for (const n of notices) console.warn(t('note.prefix') + n);
+    console.log(t('register.nothingToRegister'));
+    return;
+  }
+  let existing;
+  try {
+    existing = loadRegistry(home, notices);
+  } catch (err) {
+    console.error(t('error.prefix') + err.message);
+    process.exitCode = 1;
+    return;
+  }
+  if (existing === null) {
+    for (const n of notices) console.warn(t('note.prefix') + n);
+    console.log(t('registry.missing', { path: registryFilePath(home) }));
+    return;
+  }
+  const doc = existing;
+  const candidates = [...collected.entries];
+  let conflictsSkipped = 0;
+  for (const c of collected.conflicts) {
+    const choice = typeof selectSide === 'function' ? await selectSide(c.id) : null;
+    if (choice === 'claude') {
+      candidates.push({ id: c.id, name: c.id, description: t('register.importedDesc'), ...toCanonicalFromClaude(c.claude) });
+    } else if (choice === 'opencode') {
+      candidates.push({ id: c.id, name: c.id, description: t('register.importedDesc'), ...toCanonicalFromOpencode(c.opencode) });
+    } else {
+      conflictsSkipped++;
+    }
+  }
+  const promptOverride = async (id) => {
+    const res = await prompts(
+      { type: 'confirm', name: 'yes', message: t('register.overrideConfirm', { id }), initial: false },
+      { onCancel: () => {} }
+    );
+    return res.yes === true;
+  };
+  const { added, updated, skippedChanges } = await mergeIntoRegistry(doc, candidates, promptOverride);
+  if (added > 0 || updated > 0) {
+    fs.mkdirSync(path.dirname(registryFilePath(home)), { recursive: true });
+    writeJsonObject(registryFilePath(home), doc.map(registryEntryToFile));
+  }
+  for (const n of notices) console.warn(t('note.prefix') + n);
+  console.log(
+    t('register.summary', {
+      added,
+      updated,
+      skippedChanges,
+      conflictsSkipped,
+      skippedUnconvertible: collected.unconvertible,
+    })
+  );
 }
 
 async function initRegistry(home) {
@@ -135,29 +169,14 @@ async function initRegistry(home) {
     return;
   }
   const doc = existing === null ? [] : existing;
-  let added = 0;
-  let updated = 0;
-  let skippedChanges = 0;
-  for (const entry of collected.entries) {
-    const idx = doc.findIndex((e) => e.id === entry.id);
-    if (idx === -1) {
-      doc.push(entry);
-      added++;
-      continue;
-    }
-    const same = JSON.stringify(canonicalToClaude(doc[idx])) === JSON.stringify(canonicalToClaude(entry));
-    if (same) continue;
+  const promptOverride = async (id) => {
     const res = await prompts(
-      { type: 'confirm', name: 'yes', message: t('init.confirm', { id: entry.id }), initial: false },
+      { type: 'confirm', name: 'yes', message: t('init.confirm', { id }), initial: false },
       { onCancel: () => {} }
     );
-    if (res.yes === true) {
-      doc[idx] = entry;
-      updated++;
-    } else {
-      skippedChanges++;
-    }
-  }
+    return res.yes === true;
+  };
+  const { added, updated, skippedChanges } = await mergeIntoRegistry(doc, collected.entries, promptOverride);
   if (added > 0 || updated > 0 || existing === null) {
     fs.mkdirSync(path.dirname(registryFilePath(home)), { recursive: true });
     writeJsonObject(registryFilePath(home), doc.map(registryEntryToFile));
@@ -177,7 +196,7 @@ module.exports = {
   registryFilePath,
   normalizeUserEntry,
   loadRegistry,
-  readGlobalFile,
-  collectGlobalEntries,
+  mergeIntoRegistry,
+  registerToRegistry,
   initRegistry,
 };

@@ -54,6 +54,24 @@ async function promptConfirm(targetKeys) {
   return res.ok === true;
 }
 
+async function promptSourceChoice(id) {
+  if (!process.stdin.isTTY) return null;
+  const res = await prompts(
+    {
+      type: 'select',
+      name: 'choice',
+      message: t('register.conflictMessage', { id }),
+      choices: [
+        { title: t('register.choiceClaude'), value: 'claude' },
+        { title: t('register.choiceOpencode'), value: 'opencode' },
+        { title: t('register.choiceSkip'), value: 'skip' },
+      ],
+    },
+    { onCancel: () => {} }
+  );
+  return res.choice || null;
+}
+
 function printSummary(reports) {
   if (reports.length === 0) {
     console.log(t('summary.noneSelected'));
@@ -71,5 +89,6 @@ module.exports = {
   promptServers,
   promptTargets,
   promptConfirm,
+  promptSourceChoice,
   printSummary,
 };

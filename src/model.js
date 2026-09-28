@@ -43,6 +43,10 @@ function canonicalToOpencode(entry) {
   return def;
 }
 
+function sameLaunchDef(a, b) {
+  return JSON.stringify(canonicalToClaude(a)) === JSON.stringify(canonicalToClaude(b));
+}
+
 function registryEntryToFile(entry) {
   if (entry && entry._raw && typeof entry._raw === 'object') return entry._raw;
   const out = { id: entry.id, name: entry.name, description: entry.description };
@@ -59,4 +63,5 @@ module.exports = {
   canonicalToClaude,
   canonicalToOpencode,
   registryEntryToFile,
+  sameLaunchDef,
 };

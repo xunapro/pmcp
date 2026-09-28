@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-09-24
+skip_specs: true
+reason: Pure internal refactor - extracts source-collection functions from src/registry.js into a new src/sources.js module. No externally observable CLI behavior changes, so no spec-level behavior changes.

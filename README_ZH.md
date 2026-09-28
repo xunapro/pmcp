@@ -40,6 +40,7 @@ pmcp --version   # 或：npm run verify
 ```bash
 pmcp init        # 一次性：从客户端全局配置生成 ~/.pmcp/registry.json
 pmcp             # 在项目目录内运行：checkbox 界面，空格切换勾选、回车确认
+pmcp register    # 把当前项目的服务器提升进 ~/.pmcp/registry.json（init 的反向）
 pmcp lang zh     # 界面切换为中文（默认英文）
 ```
 
@@ -73,6 +74,7 @@ pmcp lang zh     # 界面切换为中文（默认英文）
 | --- | --- |
 | `pmcp` | 对当前目录进行交互式服务器选择 |
 | `pmcp init` | 从 `~/.claude.json` 与 `~/.config/opencode/opencode.json` 初始化/更新 `~/.pmcp/registry.json`。全局文件永远只读；注册表只新增条目、同名差异需逐项确认后才覆盖、从不删除。可重复执行（幂等）。 |
+| `pmcp register` | 与 `init` 方向相反：把**当前项目**的服务器（`.mcp.json` + `opencode.json`）合并进 `~/.pmcp/registry.json`，规则相同（只新增、逐项确认、永不删除、幂等）。若两个项目文件对同一服务器定义不一，`pmcp` 会询问注册哪一份（或跳过）；注册表缺失时提示先运行 `pmcp init`。绝不触碰项目文件与客户端全局文件。 |
 | `pmcp lang [en\|zh]` | 查看或设置界面语言（持久化到 `~/.pmcp/settings.json`） |
 | `pmcp --help` / `--version` | 用法 / 版本号，不进入交互 |
 
@@ -95,7 +97,7 @@ pmcp lang zh     # 界面切换为中文（默认英文）
 ]
 ```
 
-保存时：Claude Code 得到 `{ "command": "uvx", "args": ["mcp-server-git"], "env": {...} }`；OpenCode 得到 `{ "type": "local", "command": ["uvx", "mcp-server-git"], "environment": {...}, "enabled": true }`。历史的双格式条目（含 `claude`/`opencode` 字段）仍可加载，按 `claude` 字段归一化，且不重写文件。你也可以手工编辑该文件——除 `pmcp init` 外，`pmcp` 永不写入它。
+保存时：Claude Code 得到 `{ "command": "uvx", "args": ["mcp-server-git"], "env": {...} }`；OpenCode 得到 `{ "type": "local", "command": ["uvx", "mcp-server-git"], "environment": {...}, "enabled": true }`。历史的双格式条目（含 `claude`/`opencode` 字段）仍可加载，按 `claude` 字段归一化，且不重写文件。你也可以手工编辑该文件——只有 `pmcp init`（及其反向 `pmcp register`）可以改写它，且只有 `pmcp init` 能创建它。
 
 ## 已知限制
 

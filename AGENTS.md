@@ -4,7 +4,7 @@
 
 ## What this is
 
-`pmcp` = Project MCP Manager。Node.js CLI（CommonJS，零构建），交互式管理项目级 MCP 配置，写入 `.mcp.json`（Claude Code）与 `opencode.json`（OpenCode）。实现按职责拆分为 `src/` 六模块：入口 `index.js`（commander 装配、`run()` 编排、兼容 re-export）+ `i18n.js` / `model.js` / `registry.js` / `persistence.js` / `ui.js`；依赖单向：index → {registry, persistence, ui, i18n}，registry → {persistence, model, i18n}，persistence/ui → {model, i18n}，model/i18n 零内部依赖。
+`pmcp` = Project MCP Manager。Node.js CLI（CommonJS，零构建），交互式管理项目级 MCP 配置，写入 `.mcp.json`（Claude Code）与 `opencode.json`（OpenCode）。实现按职责拆分为 `src/` 七模块：入口 `index.js`（commander 装配、`run()` 编排、兼容 re-export）+ `i18n.js` / `model.js` / `registry.js` / `persistence.js` / `sources.js` / `ui.js`；依赖单向：index → {registry, sources, persistence, ui, i18n}，registry → {sources, persistence, model, i18n}，sources → {persistence, model, i18n}，persistence/ui → {model, i18n}，model/i18n 零内部依赖。`registry.js` 负责注册表读/归一/合并编排，来源收集（客户端全局 `collectGlobalEntries`、项目 `collectProjectEntries`）在 `sources.js`。
 
 ## Bootstrap on a fresh machine
 
@@ -34,9 +34,9 @@ pmcp lang zh            # 可选，默认 en
 
 `pmcp` 主命令是 TTY checkbox 交互，**agent 不要在管道中运行裸 `pmcp`**。程序化场景：
 
-- 改可选列表：编辑 `~/.pmcp/registry.json`（唯一事实源，pmcp 除 init 外不改写它）。
+- 改可选列表：编辑 `~/.pmcp/registry.json`（唯一事实源，`pmcp init`/`pmcp register` 可对其增量改写，其余流程不改写它）。
 - 改项目启用集：直接编辑项目 `.mcp.json` / `opencode.json` 的 `mcpServers` / `mcp` 段，条目定义用下方生成规则，与 pmcp 落盘结果等价。
-- 非 TTY 下仅这些子命令可安全直接运行：`pmcp --help`、`pmcp --version`、`pmcp lang [en|zh]`、`pmcp init`（差异确认会被取消并视为否）。
+- 非 TTY 下仅这些子命令可安全直接运行：`pmcp --help`、`pmcp --version`、`pmcp lang [en|zh]`、`pmcp init`（差异确认会被取消并视为否）。`pmcp register` 属交互依赖命令：非 TTY 下选边与覆盖确认全部取消（视为否/跳过），不会写入；程序化增改注册表仍直接编辑 `~/.pmcp/registry.json`。
 
 ## Data files & formats
 
@@ -63,7 +63,7 @@ pmcp lang zh            # 可选，默认 en
 1. 全局来源文件（`~/.claude.json`、OpenCode 用户配置）永远只读。
 2. 取消交互 / Ctrl+C：零写入，退出码 0，无堆栈输出。
 3. JSON 解析失败：stderr 指明文件、退出码 1、任何写入之前终止（先读后写）。
-4. 交互/保存流程不创建或改写 `~/.pmcp/registry.json`（只有 `pmcp init` 写它）。
+4. 交互/保存流程不创建或改写 `~/.pmcp/registry.json`（仅 `pmcp init` 创建它；`pmcp init` 与 `pmcp register` 可对其增量改写）。
 5. 远程（仅含 `url`）条目：跳过并提示，不支持。
 
 ## Code conventions

@@ -42,6 +42,7 @@ No-install alternative: `npx --yes <path-or-package> [command]`.
 ```bash
 pmcp init        # one-time: build ~/.pmcp/registry.json from your global client configs
 pmcp             # run inside a project: checkbox UI, space to toggle, enter to confirm
+pmcp register    # promote THIS project's servers into ~/.pmcp/registry.json (reverse of init)
 pmcp lang zh     # switch UI language to Chinese (default en)
 ```
 
@@ -75,6 +76,7 @@ Of course you can also just run `pmcp` yourself inside the project directory for
 | --- | --- |
 | `pmcp` | Interactive server selection for the current directory |
 | `pmcp init` | Initialize/update `~/.pmcp/registry.json` from `~/.claude.json` and `~/.config/opencode/opencode.json`. Global files are always read-only; registry entries are only added, changes require per-item confirmation, nothing is ever deleted. Idempotent. |
+| `pmcp register` | Direction opposite to `init`: merge the **current project's** servers (`.mcp.json` + `opencode.json`) into `~/.pmcp/registry.json` under the same rules (add only, per-item confirmation, never delete, idempotent). If the two project files declare a server with different definitions, `pmcp` asks which one to register (or skip). If the registry is missing, it prompts to run `pmcp init` first. Never touches project or client global files. |
 | `pmcp lang [en\|zh]` | Print or set the UI language (persisted to `~/.pmcp/settings.json`) |
 | `pmcp --help` / `--version` | Usage / version, no interaction |
 
@@ -97,7 +99,7 @@ Exit codes: `0` success or user cancel (cancel never writes files); `1` fatal (e
 ]
 ```
 
-On save: Claude Code gets `{ "command": "uvx", "args": ["mcp-server-git"], "env": {...} }`; OpenCode gets `{ "type": "local", "command": ["uvx", "mcp-server-git"], "environment": {...}, "enabled": true }`. Legacy entries with per-client `claude`/`opencode` fields are still loaded (normalized from the `claude` field) without rewriting the file. You may also edit this file by hand — `pmcp` never writes it outside `pmcp init`.
+On save: Claude Code gets `{ "command": "uvx", "args": ["mcp-server-git"], "env": {...} }`; OpenCode gets `{ "type": "local", "command": ["uvx", "mcp-server-git"], "environment": {...}, "enabled": true }`. Legacy entries with per-client `claude`/`opencode` fields are still loaded (normalized from the `claude` field) without rewriting the file. You may also edit this file by hand — only `pmcp init` (and its reverse `pmcp register`) can rewrite it; `pmcp init` is the only command that creates it.
 
 ## Limitations
 

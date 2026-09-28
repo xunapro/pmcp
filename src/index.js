@@ -5,10 +5,11 @@ const os = require('os');
 const { Command } = require('commander');
 
 const { MESSAGES, SUPPORTED_LANGS, t, getLanguage, resolveLanguage, setLanguage } = require('./i18n');
-const { TARGETS, toCanonicalFromClaude, toCanonicalFromOpencode, canonicalToClaude, canonicalToOpencode } = require('./model');
-const { normalizeUserEntry, loadRegistry, collectGlobalEntries, initRegistry, registryFilePath } = require('./registry');
+const { TARGETS, toCanonicalFromClaude, toCanonicalFromOpencode, canonicalToClaude, canonicalToOpencode, sameLaunchDef } = require('./model');
+const { normalizeUserEntry, loadRegistry, initRegistry, registerToRegistry, registryFilePath } = require('./registry');
+const { collectGlobalEntries, collectProjectEntries } = require('./sources');
 const { readState, save } = require('./persistence');
-const { promptServers, promptTargets, promptConfirm, printSummary } = require('./ui');
+const { promptServers, promptTargets, promptConfirm, promptSourceChoice, printSummary } = require('./ui');
 
 async function run(projectDir, home) {
   const userHome = home || os.homedir();
@@ -84,6 +85,12 @@ function main() {
       await initRegistry(home);
     });
   program
+    .command('register')
+    .description(t('cli.registerDesc'))
+    .action(async () => {
+      await registerToRegistry(process.cwd(), home, promptSourceChoice);
+    });
+  program
     .command('lang')
     .description(t('cli.langDesc'))
     .argument('[code]', t('cli.langArg'))
@@ -117,11 +124,14 @@ module.exports = {
   loadRegistry,
   normalizeUserEntry,
   collectGlobalEntries,
+  collectProjectEntries,
   initRegistry,
+  registerToRegistry,
   toCanonicalFromClaude,
   toCanonicalFromOpencode,
   canonicalToClaude,
   canonicalToOpencode,
+  sameLaunchDef,
   readState,
   save,
   run,
