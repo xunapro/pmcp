@@ -5,7 +5,7 @@ const os = require('os');
 const { Command } = require('commander');
 
 const { MESSAGES, SUPPORTED_LANGS, t, getLanguage, resolveLanguage, setLanguage } = require('./i18n');
-const { TARGETS, toCanonicalFromClaude, toCanonicalFromOpencode, canonicalToClaude, canonicalToOpencode, sameLaunchDef } = require('./model');
+const { TARGETS, classify, simpleRemoteType, canonicalOf, toCanonicalFromClaude, toCanonicalFromOpencode, canonicalToClaude, canonicalToOpencode, isLocalEntry, isRemoteEntry, sameLaunchDef } = require('./model');
 const { normalizeUserEntry, loadRegistry, initRegistry, registerToRegistry, registryFilePath } = require('./registry');
 const { collectGlobalEntries, collectProjectEntries } = require('./sources');
 const { readState, save } = require('./persistence');
@@ -127,10 +127,15 @@ module.exports = {
   collectProjectEntries,
   initRegistry,
   registerToRegistry,
+  classify,
+  simpleRemoteType,
+  canonicalOf,
   toCanonicalFromClaude,
   toCanonicalFromOpencode,
   canonicalToClaude,
   canonicalToOpencode,
+  isLocalEntry,
+  isRemoteEntry,
   sameLaunchDef,
   readState,
   save,

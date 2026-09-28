@@ -70,7 +70,9 @@ function save(projectDir, selectedIds, targetKeys, state, registry) {
     const removed = [];
     for (const entry of registry) {
       if (selected.has(entry.id)) {
-        nextSection[entry.id] = key === 'claude' ? canonicalToClaude(entry) : canonicalToOpencode(entry);
+        const generated = key === 'claude' ? canonicalToClaude(entry) : canonicalToOpencode(entry);
+        const existingDef = nextSection[entry.id] && typeof nextSection[entry.id] === 'object' ? nextSection[entry.id] : {};
+        nextSection[entry.id] = { ...existingDef, ...generated };
       } else if (Object.prototype.hasOwnProperty.call(nextSection, entry.id)) {
         delete nextSection[entry.id];
         removed.push(entry.id);

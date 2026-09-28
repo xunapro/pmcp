@@ -40,19 +40,21 @@ pmcp lang zh            # 可选，默认 en
 
 ## Data files & formats
 
-`~/.pmcp/registry.json` — 条目为单份 canonical 启动定义：
+`~/.pmcp/registry.json` — 条目为单份 canonical 启动定义，含两形态：
 
 ```json
 [{ "id": "git", "name": "Git", "description": "Git tools",
-   "command": "uvx", "args": ["mcp-server-git"], "env": { "K": "V" } }]
+   "command": "uvx", "args": ["mcp-server-git"], "env": { "K": "V" } },
+ { "id": "remote-example", "name": "Remote Example", "description": "SaaS MCP",
+   "url": "https://mcp.example.com", "type": "http" }]
 ```
 
-`args`、`env` 可选。旧版双字段条目（含 `claude`/`opencode`）仍可加载，按 `claude` 字段归一、文件不重写。
+本地形态为 `command` + 可选 `args`/`env`；远程形态为 `url` + `type`（`http` / `sse` / `ws`，采用 Claude Code 词汇保真）。两形态互斥：含 `url` 即远程。旧版双字段条目（含 `claude`/`opencode`）仍可加载，按 `claude` 字段归一、文件不重写。
 
 落盘生成规则（save 时即时生成，勿在注册表内存双格式）：
 
-- claude → `{ "command": ..., "args": ..., "env": ... }`（无 `enabled`/`type` 字段）
-- opencode → `{ "type": "local", "command": [command, ...args], "environment": ..., "enabled": true }`（`command` 必为数组）
+- claude 本地 → `{ "command": ..., "args": ..., "env": ... }`（无 `enabled`/`type` 字段）；claude 远程 → `{ "type": "http"|"sse"|"ws", "url": ... }`
+- opencode 本地 → `{ "type": "local", "command": [command, ...args], "environment": ..., "enabled": true }`（`command` 必为数组）；opencode 远程 → `{ "type": "remote", "url": ..., "enabled": true }`（传输类型由 url scheme 在客户端判定）
 
 `~/.pmcp/settings.json` — `{ "language": "en" | "zh" }`，由 `pmcp lang` 读写；损坏时按 en 继续、不重写。
 
@@ -64,7 +66,7 @@ pmcp lang zh            # 可选，默认 en
 2. 取消交互 / Ctrl+C：零写入，退出码 0，无堆栈输出。
 3. JSON 解析失败：stderr 指明文件、退出码 1、任何写入之前终止（先读后写）。
 4. 交互/保存流程不创建或改写 `~/.pmcp/registry.json`（仅 `pmcp init` 创建它；`pmcp init` 与 `pmcp register` 可对其增量改写）。
-5. 远程（仅含 `url`）条目：跳过并提示，不支持。
+5. 无法归一的条目（既无 `command` 亦无 `url`，或 `type` 不是受支持的本地/远程传输类型，如 sdk/plugin）：跳过并提示，不支持。
 
 ## Code conventions
 
@@ -73,7 +75,6 @@ pmcp lang zh            # 可选，默认 en
 - CommonJS、无构建步骤、不引入新依赖（现有：commander、prompts）。
 - `src/index.js` 首行 shebang，`src/` 全部 js 必须保持 LF 行尾（`.gitattributes` 已固化）；否则 Linux/macOS 安装后无法执行。
 - `src/index.js` 的 `module.exports` 是对外兼容 API（拆分后 re-export 各模块公共函数），外部脚本只 require `src/index.js`，勿直接依赖子模块路径。
-- 远程服务器类型是 v1 的 Non-Goal，勿实现。
 
 ## Verifying changes
 

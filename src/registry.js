@@ -21,6 +21,9 @@ function normalizeUserEntry(item, notices) {
   let canonical = null;
   if (typeof item.command === 'string') {
     canonical = toCanonicalFromClaude(item);
+  } else if (typeof item.url === 'string' && item.url.length > 0) {
+    // Remote entry: { url, type } uses the Claude Code type vocabulary in the registry file.
+    canonical = toCanonicalFromClaude(item);
   } else if (item.claude && typeof item.claude === 'object') {
     // Legacy dual-format entry: the claude field is authoritative when it disagrees with opencode.
     canonical = toCanonicalFromClaude(item.claude);

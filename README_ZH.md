@@ -60,7 +60,7 @@ pmcp lang zh     # 界面切换为中文（默认英文）
 
 **提示词 2——初始化注册表（首次运行）：**
 
-> 阅读本仓库根目录的 `AGENTS.md`，运行 `pmcp init`，从现有客户端全局配置（`~/.claude.json`、OpenCode 用户配置）生成 `~/.pmcp/registry.json`。报告结果，包括被跳过的远程（url 型）条目。若 `pmcp init` 因不存在任何客户端全局配置而以退出码 1 结束，请按 AGENTS.md 的统一条目格式手写 `~/.pmcp/registry.json`。不要在非 TTY 环境运行裸 `pmcp` 命令（它是交互式 checkbox UI）。
+> 阅读本仓库根目录的 `AGENTS.md`，运行 `pmcp init`，从现有客户端全局配置（`~/.claude.json`、OpenCode 用户配置）生成 `~/.pmcp/registry.json`。报告结果，包括被跳过的条目（既无 command 亦无 url、或 type 不受支持的条目）。若 `pmcp init` 因不存在任何客户端全局配置而以退出码 1 结束，请按 AGENTS.md 的统一条目格式手写 `~/.pmcp/registry.json`。不要在非 TTY 环境运行裸 `pmcp` 命令（它是交互式 checkbox UI）。
 
 **提示词 3——按项目管理服务器（日常使用）：**
 
@@ -82,7 +82,7 @@ pmcp lang zh     # 界面切换为中文（默认英文）
 
 ## 注册表格式
 
-`~/.pmcp/registry.json` 是 checkbox 列表的唯一事实源。每个条目只保存**一份统一（canonical）启动定义**；面向各客户端的专属格式在写入时即时生成：
+`~/.pmcp/registry.json` 是 checkbox 列表的唯一事实源。每一份统一（canonical）定义只存一条，示例：
 
 ```json
 [
@@ -93,15 +93,24 @@ pmcp lang zh     # 界面切换为中文（默认英文）
     "command": "uvx",
     "args": ["mcp-server-git"],
     "env": { "KEY": "value" }
+  },
+  {
+    "id": "remote-example",
+    "name": "Remote Example",
+    "description": "SaaS MCP 服务器",
+    "url": "https://mcp.example.com",
+    "type": "http"
   }
 ]
 ```
 
-保存时：Claude Code 得到 `{ "command": "uvx", "args": ["mcp-server-git"], "env": {...} }`；OpenCode 得到 `{ "type": "local", "command": ["uvx", "mcp-server-git"], "environment": {...}, "enabled": true }`。历史的双格式条目（含 `claude`/`opencode` 字段）仍可加载，按 `claude` 字段归一化，且不重写文件。你也可以手工编辑该文件——只有 `pmcp init`（及其反向 `pmcp register`）可以改写它，且只有 `pmcp init` 能创建它。
+每个条目只保存**一份统一（canonical）启动定义**，含两形态：**本地**（`command` + 可选 `args`/`env`）与**远程**（`url` + `type`，`type` 为 `http`/`sse`/`ws`，采用 Claude Code 词汇）。面向各客户端的专属格式在写入时即时生成。
+
+保存本地条目时：Claude Code 得到 `{ "command": "uvx", "args": ["mcp-server-git"], "env": {...} }`；OpenCode 得到 `{ "type": "local", "command": ["uvx", "mcp-server-git"], "environment": {...}, "enabled": true }`。保存远程条目时：Claude Code 得到 `{ "type": "http", "url": ... }`（按存储的 `type` 原样写出）；OpenCode 得到 `{ "type": "remote", "url": ..., "enabled": true }`。历史的双格式条目（含 `claude`/`opencode` 字段）仍可加载，按 `claude` 字段归一化，且不重写文件。你也可以手工编辑该文件——只有 `pmcp init`（及其反向 `pmcp register`）可以改写它，且只有 `pmcp init` 能创建它。
 
 ## 已知限制
 
-- 不支持远程（SSE / HTTP `url` 型）服务器，此类条目会被跳过并提示。
+- 支持远程（`url` 型）服务器：注册表以 `{ "url", "type" }`（`http`/`sse`/`ws`）保存；既无 command 亦无 url、或 type 不受支持的条目（如 sdk/plugin）会被跳过并提示。
 - `opencode.json` 必须是纯 JSON（若为含注释的 JSONC，注释会在重写时丢失）。
 - 写文件为整体 `writeFileSync`（非原子写），v1 接受该权衡。
 

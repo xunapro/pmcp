@@ -62,7 +62,7 @@ This repo ships `AGENTS.md` — an agent-facing doc (auto-detected by coding age
 
 **Prompt 2 — initialize the registry (first run):**
 
-> Read `AGENTS.md` in this repository, then run `pmcp init` to build `~/.pmcp/registry.json` from the existing client global configs (`~/.claude.json`, OpenCode user config). Report the result, including any remote (`url`) entries that were skipped. If `pmcp init` exits 1 because no client global config exists, hand-write `~/.pmcp/registry.json` using the canonical entry format from AGENTS.md. Do not run the bare `pmcp` command in non-TTY contexts (it is an interactive checkbox UI).
+> Read `AGENTS.md` in this repository, then run `pmcp init` to build `~/.pmcp/registry.json` from the existing client global configs (`~/.claude.json`, OpenCode user config). Report the result, including any entries that were skipped (entries with neither a command nor a URL, or an unsupported type). If `pmcp init` exits 1 because no client global config exists, hand-write `~/.pmcp/registry.json` using the canonical entry format from AGENTS.md. Do not run the bare `pmcp` command in non-TTY contexts (it is an interactive checkbox UI).
 
 **Prompt 3 — manage a project's servers (day-to-day):**
 
@@ -84,7 +84,7 @@ Exit codes: `0` success or user cancel (cancel never writes files); `1` fatal (e
 
 ## Registry format
 
-`~/.pmcp/registry.json` is the single source for the checkbox list. Each entry stores **one canonical launch definition**; client-specific formats are generated at save time:
+`~/.pmcp/registry.json` is the single source for the checkbox list. Examples of the canonical definitions:
 
 ```json
 [
@@ -95,15 +95,24 @@ Exit codes: `0` success or user cancel (cancel never writes files); `1` fatal (e
     "command": "uvx",
     "args": ["mcp-server-git"],
     "env": { "KEY": "value" }
+  },
+  {
+    "id": "remote-example",
+    "name": "Remote Example",
+    "description": "SaaS MCP server",
+    "url": "https://mcp.example.com",
+    "type": "http"
   }
 ]
 ```
 
-On save: Claude Code gets `{ "command": "uvx", "args": ["mcp-server-git"], "env": {...} }`; OpenCode gets `{ "type": "local", "command": ["uvx", "mcp-server-git"], "environment": {...}, "enabled": true }`. Legacy entries with per-client `claude`/`opencode` fields are still loaded (normalized from the `claude` field) without rewriting the file. You may also edit this file by hand — only `pmcp init` (and its reverse `pmcp register`) can rewrite it; `pmcp init` is the only command that creates it.
+Each entry stores exactly one canonical launch definition in one of two shapes: **local** (`command` + optional `args`/`env`) or **remote** (`url` + `type`, where `type` is `http`/`sse`/`ws` using the Claude Code vocabulary). Client-specific formats are generated at save time.
+
+On save for a local entry: Claude Code gets `{ "command": "uvx", "args": ["mcp-server-git"], "env": {...} }`; OpenCode gets `{ "type": "local", "command": ["uvx", "mcp-server-git"], "environment": {...}, "enabled": true }`. For a remote entry: Claude Code gets `{ "type": "http", "url": ... }` (keeping `type` as stored); OpenCode gets `{ "type": "remote", "url": ..., "enabled": true }`. Legacy entries with per-client `claude`/`opencode` fields are still loaded (normalized from the `claude` field) without rewriting the file. You may also edit this file by hand — only `pmcp init` (and its reverse `pmcp register`) can rewrite it; `pmcp init` is the only command that creates it.
 
 ## Limitations
 
-- Remote (SSE / HTTP `url`) servers are not supported; such entries are skipped with a notice.
+- Remote (`url`) servers are supported as `{ "url", "type" }` (`http`/`sse`/`ws`); entries with neither a command nor a URL, or an unsupported type (e.g. `sdk`/`plugin`), are skipped with a notice.
 - `opencode.json` must be pure JSON (JSONC comments would be lost on rewrite).
 - Writes are whole-file `writeFileSync` (non-atomic), acceptable for v1.
 

@@ -1,60 +1,6 @@
-# interactive-server-selection Specification
+# Spec Delta
 
-## Purpose
-
-定义交互式终端体验：可选服务器列表唯一来源于用户级注册表文件（由 `pmcp init` 从客户端全局配置初始化/增量更新）、checkbox 多选列表、依据既有配置的状态回显，以及通向落盘的确认/取消流程。
-
-## Requirements
-
-### Requirement: 已知服务器的 checkbox 列表
-pmcp SHALL 展示一个交互式 checkbox（多选）列表，包含注册表中的每一个服务器——注册表条目唯一来自用户级注册表文件 `~/.pmcp/registry.json`——各自以可读的名称标识。
-
-#### Scenario: 空项目首次运行
-- **WHEN** 用户在没有任何 MCP 配置文件的目录中运行 `pmcp`
-- **THEN** pmcp 展示所有注册表服务器的 checkbox 列表，且均未被预选
-
-### Requirement: 当前启用状态被预选
-当注册表中的某个服务器已在本项目任一受管配置文件中启用时，pmcp SHALL 将其显示为已勾选，使勾选态在每次运行时反映持久化状态。
-
-#### Scenario: 从既有配置回显
-- **WHEN** `.mcp.json` 已声明注册表服务器 "filesystem"，用户运行 `pmcp`
-- **THEN** "filesystem" 条目显示为已勾选
-
-#### Scenario: 配置中未启用的服务器不勾选
-- **WHEN** `.mcp.json` 存在但未声明某个注册表服务器
-- **THEN** 该服务器显示为未勾选
-
-### Requirement: 未知条目仅保留不受管控
-当既有配置文件声明了不在 pmcp 注册表中的 MCP 服务器时，pmcp SHALL 在保存时保持这些服务器不动；checkbox 列表 SHALL 只包含注册表内的服务器。
-
-#### Scenario: 配置中的自定义服务器
-- **WHEN** `.mcp.json` 包含一个不在注册表中的服务器 `my-custom-mcp`，用户保存变更
-- **THEN** `my-custom-mcp` 保留在 `.mcp.json` 中且定义不变，也不会作为可勾选条目出现
-
-### Requirement: 确认即保存，取消即中止
-当用户确认选择时 pmcp SHALL 持久化所选集合；当用户取消提示时 SHALL 不做任何写入直接退出。
-
-#### Scenario: 用户确认选择
-- **WHEN** 用户勾选/取消若干服务器后确认
-- **THEN** pmcp 将该选择应用到项目的配置文件
-
-#### Scenario: 用户取消选择
-- **WHEN** 用户在确认步骤选择不继续
-- **THEN** pmcp 退出且不写入任何配置文件
-
-### Requirement: 保存后的摘要
-保存完成后，pmcp SHALL 打印简要摘要说明写入了什么（按文件列出启用与禁用的服务器），便于用户核对结果。
-
-#### Scenario: 保存后输出摘要
-- **WHEN** 用户确认了一个启用一个服务器、禁用另一个服务器的选择
-- **THEN** pmcp 在退出码 0 前打印列出启用与禁用服务器的摘要
-
-### Requirement: 无配置时的目标格式选择
-当项目里 `.mcp.json` 与 `opencode.json` 都不存在时，pmcp SHALL 在保存前询问用户要创建哪种（些）客户端格式，并且 SHALL 只创建被选中的文件。
-
-#### Scenario: 新项目只选一种客户端
-- **WHEN** 用户在没有任何 MCP 配置文件的项目中运行 `pmcp`，选中服务器后只选择 Claude Code 格式
-- **THEN** pmcp 创建包含所选服务器的 `.mcp.json`，且不创建 `opencode.json`
+## MODIFIED Requirements
 
 ### Requirement: 用户级注册表文件
 pmcp SHALL 从当前用户主目录下的 `~/.pmcp/registry.json` 读取服务器注册表，该文件 SHALL 为交互列表的唯一事实源；pmcp 的交互与保存流程 SHALL NOT 自动创建或覆盖此文件（它仅由 `pmcp init` 命令产生/更新或用户手工编辑）。每个注册表条目 SHALL 只保留一份统一（canonical）启动定义，含两形态：本地条目为 `command`/`args?`/`env?`，远程条目为 `url` 与 `type`（`http`/`sse`/`ws` 之一，采用 Claude Code 词汇以保真写回）。写入项目配置文件时 SHALL 按目标客户端格式即时生成专属定义。为兼容历史文件，加载时 pmcp SHALL 将旧版双格式条目（含 `claude`/`opencode` 字段）归一化为统一格式（两字段定义不一致时以 `claude` 字段为准），且 SHALL NOT 因此重写文件。文件不存在时 pmcp SHALL 不进入服务器选择交互，打印提示引导用户运行 `pmcp init` 初始化，并以退出码 0 结束，且 SHALL NOT 创建任何文件。文件解析失败时 pmcp SHALL 向 stderr 输出指明该文件的错误并以非零码退出，且不修改任何文件。
