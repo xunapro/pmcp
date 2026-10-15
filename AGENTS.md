@@ -34,9 +34,9 @@ pmcp lang zh            # 可选，默认 en
 
 `pmcp` 主命令是 TTY checkbox 交互，**agent 不要在管道中运行裸 `pmcp`**。程序化场景：
 
-- 改可选列表：编辑 `~/.pmcp/registry.json`（唯一事实源，`pmcp init`/`pmcp register` 可对其增量改写，其余流程不改写它）。
+- 改可选列表：编辑 `~/.pmcp/registry.json`（唯一事实源，`pmcp init`/`pmcp register`/`pmcp unregister`/`pmcp rename` 可对其改写，其余流程不改写它）。
 - 改项目启用集：直接编辑项目 `.mcp.json` / `opencode.json` 的 `mcpServers` / `mcp` 段，条目定义用下方生成规则，与 pmcp 落盘结果等价。
-- 非 TTY 下仅这些子命令可安全直接运行：`pmcp --help`、`pmcp --version`、`pmcp lang [en|zh]`、`pmcp init`（差异确认会被取消并视为否）。`pmcp register` 属交互依赖命令：非 TTY 下选边与覆盖确认全部取消（视为否/跳过），不会写入；程序化增改注册表仍直接编辑 `~/.pmcp/registry.json`。
+- 非 TTY 下仅这些子命令可安全直接运行：`pmcp --help`、`pmcp --version`、`pmcp lang [en|zh]`、`pmcp init`（差异确认会被取消并视为否）、`pmcp rename <id> <new>`（参数形式，无需交互）。`pmcp register`、`pmcp unregister` 与交互式 `pmcp rename` 属交互依赖命令：非 TTY 下选边/多选/确认全部取消（视为否/跳过），不会写入；程序化增改注册表仍直接编辑 `~/.pmcp/registry.json`。
 
 ## Data files & formats
 
@@ -65,7 +65,7 @@ pmcp lang zh            # 可选，默认 en
 1. 全局来源文件（`~/.claude.json`、OpenCode 用户配置）永远只读。
 2. 取消交互 / Ctrl+C：零写入，退出码 0，无堆栈输出。
 3. JSON 解析失败：stderr 指明文件、退出码 1、任何写入之前终止（先读后写）。
-4. 交互/保存流程不创建或改写 `~/.pmcp/registry.json`（仅 `pmcp init` 创建它；`pmcp init` 与 `pmcp register` 可对其增量改写）。
+4. 交互/保存流程不创建或改写 `~/.pmcp/registry.json`（仅 `pmcp init` 创建它；`pmcp init`、`pmcp register`、`pmcp unregister` 与 `pmcp rename` 可对其改写）。
 5. 无法归一的条目（既无 `command` 亦无 `url`，或 `type` 不是受支持的本地/远程传输类型，如 sdk/plugin）：跳过并提示，不支持。
 
 ## Code conventions

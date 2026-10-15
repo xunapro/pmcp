@@ -6,10 +6,10 @@ const { Command } = require('commander');
 
 const { MESSAGES, SUPPORTED_LANGS, t, getLanguage, resolveLanguage, setLanguage } = require('./i18n');
 const { TARGETS, classify, simpleRemoteType, canonicalOf, toCanonicalFromClaude, toCanonicalFromOpencode, canonicalToClaude, canonicalToOpencode, isLocalEntry, isRemoteEntry, sameLaunchDef } = require('./model');
-const { normalizeUserEntry, loadRegistry, initRegistry, registerToRegistry, registryFilePath } = require('./registry');
+const { normalizeUserEntry, loadRegistry, initRegistry, registerToRegistry, unregisterFromRegistry, renameRegistryEntry, renameRegistryInteractive, registryFilePath } = require('./registry');
 const { collectGlobalEntries, collectProjectEntries } = require('./sources');
-const { readState, save } = require('./persistence');
-const { promptServers, promptTargets, promptConfirm, promptSourceChoice, printSummary } = require('./ui');
+const { readState, save, removeFromProject } = require('./persistence');
+const { promptServers, promptTargets, promptConfirm, promptSourceChoice, promptUnregister, promptConfirmProjectRemove, promptRenameSelect, promptRenameName, printSummary } = require('./ui');
 
 async function run(projectDir, home) {
   const userHome = home || os.homedir();
@@ -42,17 +42,15 @@ async function run(projectDir, home) {
 
   const servers = await promptServers(registry, state.enabled);
 
-  let targetKeys = state.managed;
+  if (state.managed.length === 0 && servers.length === 0) {
+    console.log(t('summary.noneSelected'));
+    return;
+  }
+
+  const targetKeys = await promptTargets(state.managed);
   if (targetKeys.length === 0) {
-    if (servers.length === 0) {
-      console.log(t('summary.noneSelected'));
-      return;
-    }
-    targetKeys = await promptTargets();
-    if (targetKeys.length === 0) {
-      console.log(t('summary.noTargets'));
-      return;
-    }
+    console.log(t('summary.noTargets'));
+    return;
   }
 
   const ok = await promptConfirm(targetKeys);
@@ -91,6 +89,24 @@ function main() {
       await registerToRegistry(process.cwd(), home, promptSourceChoice);
     });
   program
+    .command('unregister')
+    .description(t('cli.unregisterDesc'))
+    .action(async () => {
+      await unregisterFromRegistry(process.cwd(), home, promptUnregister, promptConfirmProjectRemove);
+    });
+  program
+    .command('rename')
+    .description(t('cli.renameDesc'))
+    .argument('[id]', t('cli.renameIdArg'))
+    .argument('[name]', t('cli.renameNameArg'))
+    .action(async (id, name) => {
+      if (id !== undefined && name !== undefined) {
+        renameRegistryEntry(home, id, name);
+        return;
+      }
+      await renameRegistryInteractive(home, promptRenameSelect, promptRenameName);
+    });
+  program
     .command('lang')
     .description(t('cli.langDesc'))
     .argument('[code]', t('cli.langArg'))
@@ -127,6 +143,9 @@ module.exports = {
   collectProjectEntries,
   initRegistry,
   registerToRegistry,
+  unregisterFromRegistry,
+  renameRegistryEntry,
+  renameRegistryInteractive,
   classify,
   simpleRemoteType,
   canonicalOf,
@@ -139,6 +158,7 @@ module.exports = {
   sameLaunchDef,
   readState,
   save,
+  removeFromProject,
   run,
   t,
   resolveLanguage,

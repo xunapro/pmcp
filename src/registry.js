@@ -6,7 +6,7 @@ const prompts = require('prompts');
 
 const { t, resolveLanguage } = require('./i18n');
 const { toCanonicalFromClaude, toCanonicalFromOpencode, registryEntryToFile, sameLaunchDef } = require('./model');
-const { writeJsonObject } = require('./persistence');
+const { writeJsonObject, readState, removeFromProject } = require('./persistence');
 const { readGlobalFile, collectGlobalEntries, collectProjectEntries } = require('./sources');
 
 function registryFilePath(home) {
@@ -195,6 +195,137 @@ async function initRegistry(home) {
   );
 }
 
+async function unregisterFromRegistry(projectDir, home, promptSelect, promptConfirmRemove) {
+  resolveLanguage(home);
+  const notices = [];
+  let registry;
+  try {
+    registry = loadRegistry(home, notices);
+  } catch (err) {
+    for (const n of notices) console.warn(t('note.prefix') + n);
+    console.error(t('error.prefix') + err.message);
+    process.exitCode = 1;
+    return;
+  }
+  if (registry === null) {
+    for (const n of notices) console.warn(t('note.prefix') + n);
+    console.log(t('registry.missing', { path: registryFilePath(home) }));
+    return;
+  }
+  if (registry.length === 0) {
+    for (const n of notices) console.warn(t('note.prefix') + n);
+    console.log(t('unregister.noneToRemove'));
+    return;
+  }
+  const selected = typeof promptSelect === 'function' ? await promptSelect(registry) : [];
+  if (!Array.isArray(selected) || selected.length === 0) {
+    for (const n of notices) console.warn(t('note.prefix') + n);
+    console.log(t('ui.cancelled'));
+    return;
+  }
+  const selectedSet = new Set(selected);
+  let state;
+  try {
+    state = readState(projectDir, registry);
+  } catch (err) {
+    console.error(t('error.prefix') + err.message);
+    process.exitCode = 1;
+    return;
+  }
+  const enabledSelected = selected.filter((id) => state.enabled.has(id));
+  let removedFromProject = [];
+  if (enabledSelected.length > 0) {
+    const yes = typeof promptConfirmRemove === 'function' ? await promptConfirmRemove(enabledSelected) : false;
+    if (yes === true) {
+      const reports = removeFromProject(projectDir, enabledSelected, state);
+      removedFromProject = reports.reduce((acc, r) => acc.concat(r.removed), []);
+    }
+  }
+  const doc = registry.filter((e) => !selectedSet.has(e.id));
+  fs.mkdirSync(path.dirname(registryFilePath(home)), { recursive: true });
+  writeJsonObject(registryFilePath(home), doc.map(registryEntryToFile));
+  for (const n of notices) console.warn(t('note.prefix') + n);
+  console.log(t('unregister.summary', { removed: selected.length }));
+  if (removedFromProject.length > 0) {
+    console.log(t('unregister.projectRemoved', { list: removedFromProject.join(', ') }));
+  }
+}
+
+function renameRegistryEntry(home, id, newName) {
+  resolveLanguage(home);
+  const notices = [];
+  let registry;
+  try {
+    registry = loadRegistry(home, notices);
+  } catch (err) {
+    for (const n of notices) console.warn(t('note.prefix') + n);
+    console.error(t('error.prefix') + err.message);
+    process.exitCode = 1;
+    return false;
+  }
+  if (registry === null) {
+    for (const n of notices) console.warn(t('note.prefix') + n);
+    console.log(t('registry.missing', { path: registryFilePath(home) }));
+    return false;
+  }
+  const name = typeof newName === 'string' ? newName.trim() : '';
+  if (name === '') {
+    console.error(t('error.prefix') + t('rename.emptyName'));
+    process.exitCode = 1;
+    return false;
+  }
+  const entry = registry.find((e) => e.id === id);
+  if (!entry) {
+    console.error(t('error.prefix') + t('rename.notFound', { id }));
+    process.exitCode = 1;
+    return false;
+  }
+  entry.name = name;
+  if (entry._raw && typeof entry._raw === 'object') entry._raw.name = name;
+  fs.mkdirSync(path.dirname(registryFilePath(home)), { recursive: true });
+  writeJsonObject(registryFilePath(home), registry.map(registryEntryToFile));
+  for (const n of notices) console.warn(t('note.prefix') + n);
+  console.log(t('rename.success', { id, name }));
+  return true;
+}
+
+async function renameRegistryInteractive(home, promptSelect, promptName) {
+  resolveLanguage(home);
+  const notices = [];
+  let registry;
+  try {
+    registry = loadRegistry(home, notices);
+  } catch (err) {
+    for (const n of notices) console.warn(t('note.prefix') + n);
+    console.error(t('error.prefix') + err.message);
+    process.exitCode = 1;
+    return;
+  }
+  if (registry === null) {
+    for (const n of notices) console.warn(t('note.prefix') + n);
+    console.log(t('registry.missing', { path: registryFilePath(home) }));
+    return;
+  }
+  if (registry.length === 0) {
+    for (const n of notices) console.warn(t('note.prefix') + n);
+    console.log(t('rename.noneToRename'));
+    return;
+  }
+  const id = typeof promptSelect === 'function' ? await promptSelect(registry) : null;
+  if (!id) {
+    for (const n of notices) console.warn(t('note.prefix') + n);
+    console.log(t('ui.cancelled'));
+    return;
+  }
+  const name = typeof promptName === 'function' ? await promptName() : null;
+  if (!name || name.trim() === '') {
+    for (const n of notices) console.warn(t('note.prefix') + n);
+    console.log(t('ui.cancelled'));
+    return;
+  }
+  renameRegistryEntry(home, id, name);
+}
+
 module.exports = {
   registryFilePath,
   normalizeUserEntry,
@@ -202,4 +333,7 @@ module.exports = {
   mergeIntoRegistry,
   registerToRegistry,
   initRegistry,
+  unregisterFromRegistry,
+  renameRegistryEntry,
+  renameRegistryInteractive,
 };

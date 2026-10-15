@@ -46,7 +46,7 @@ pmcp register    # promote THIS project's servers into ~/.pmcp/registry.json (re
 pmcp lang zh     # switch UI language to Chinese (default en)
 ```
 
-If the project has neither `.mcp.json` nor `opencode.json`, `pmcp` asks which file(s) to create. Servers not managed by the registry are always preserved untouched.
+If the project has neither `.mcp.json` nor `opencode.json`, `pmcp` asks which file(s) to create; when the project already has managed files, `pmcp` still asks which client format(s) to write, pre-selecting the formats already managed in the project. Servers not managed by the registry are always preserved untouched.
 
 ## Use with an AI agent
 
@@ -77,6 +77,8 @@ Of course you can also just run `pmcp` yourself inside the project directory for
 | `pmcp` | Interactive server selection for the current directory |
 | `pmcp init` | Initialize/update `~/.pmcp/registry.json` from `~/.claude.json` and `~/.config/opencode/opencode.json`. Global files are always read-only; registry entries are only added, changes require per-item confirmation, nothing is ever deleted. Idempotent. |
 | `pmcp register` | Direction opposite to `init`: merge the **current project's** servers (`.mcp.json` + `opencode.json`) into `~/.pmcp/registry.json` under the same rules (add only, per-item confirmation, never delete, idempotent). If the two project files declare a server with different definitions, `pmcp` asks which one to register (or skip). If the registry is missing, it prompts to run `pmcp init` first. Never touches project or client global files. |
+| `pmcp unregister` | Remove servers from `~/.pmcp/registry.json` via an interactive multi-select; for each removed server that is enabled in the current project's config files, asks whether to also remove it from those files. If the registry is missing, prompts to run `pmcp init` first. Never touches client global files. |
+| `pmcp rename [id] [name]` | Rename a registry server's display `name` (the `id` and launch definition stay unchanged). With both `id` and `name` given it renames directly; with no arguments it lists servers interactively and prompts for the new name. |
 | `pmcp lang [en\|zh]` | Print or set the UI language (persisted to `~/.pmcp/settings.json`) |
 | `pmcp --help` / `--version` | Usage / version, no interaction |
 

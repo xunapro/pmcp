@@ -27,13 +27,14 @@ async function promptServers(registry, enabled) {
   return res.servers;
 }
 
-async function promptTargets() {
+async function promptTargets(preselectedKeys) {
+  const selectedSet = new Set(preselectedKeys && preselectedKeys.length > 0 ? preselectedKeys : Object.keys(TARGETS));
   const res = await prompts(
     {
       type: 'multiselect',
       name: 'targets',
       message: t('ui.targetsMessage'),
-      choices: Object.keys(TARGETS).map((k) => ({ title: TARGETS[k].label, value: k, selected: true })),
+      choices: Object.keys(TARGETS).map((k) => ({ title: TARGETS[k].label, value: k, selected: selectedSet.has(k) })),
     },
     { onCancel: cancelExit }
   );
@@ -72,6 +73,62 @@ async function promptSourceChoice(id) {
   return res.choice || null;
 }
 
+async function promptUnregister(registry) {
+  if (!process.stdin.isTTY) return [];
+  const res = await prompts(
+    {
+      type: 'multiselect',
+      name: 'servers',
+      message: t('unregister.message'),
+      choices: registry.map((e) => ({ title: `${e.name} — ${e.description}`, value: e.id, selected: false })),
+    },
+    { onCancel: cancelExit }
+  );
+  return res.servers || [];
+}
+
+async function promptConfirmProjectRemove(ids) {
+  if (!process.stdin.isTTY) return false;
+  const res = await prompts(
+    {
+      type: 'confirm',
+      name: 'yes',
+      message: t('unregister.confirmProjectRemove', { list: ids.join(', ') }),
+      initial: false,
+    },
+    { onCancel: () => {} }
+  );
+  return res.yes === true;
+}
+
+async function promptRenameSelect(registry) {
+  if (!process.stdin.isTTY) return null;
+  const res = await prompts(
+    {
+      type: 'select',
+      name: 'id',
+      message: t('rename.message'),
+      choices: registry.map((e) => ({ title: `${e.name} — ${e.description}`, value: e.id })),
+    },
+    { onCancel: cancelExit }
+  );
+  return res.id;
+}
+
+async function promptRenameName() {
+  if (!process.stdin.isTTY) return null;
+  const res = await prompts(
+    {
+      type: 'text',
+      name: 'name',
+      message: t('rename.namePrompt'),
+      validate: (v) => (v && v.trim() !== '' ? true : t('rename.emptyName')),
+    },
+    { onCancel: cancelExit }
+  );
+  return res.name;
+}
+
 function printSummary(reports) {
   if (reports.length === 0) {
     console.log(t('summary.noneSelected'));
@@ -90,5 +147,9 @@ module.exports = {
   promptTargets,
   promptConfirm,
   promptSourceChoice,
+  promptUnregister,
+  promptConfirmProjectRemove,
+  promptRenameSelect,
+  promptRenameName,
   printSummary,
 };

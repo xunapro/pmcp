@@ -52,6 +52,30 @@ function readState(projectDir, registry) {
   return { managed, data, enabled };
 }
 
+function removeFromProject(projectDir, ids, state) {
+  const idSet = new Set(ids);
+  const reports = [];
+  for (const key of state.managed) {
+    const target = TARGETS[key];
+    const doc = state.data[key];
+    const sectionRaw = doc[target.section];
+    if (!sectionRaw || typeof sectionRaw !== 'object' || Array.isArray(sectionRaw)) continue;
+    const nextSection = { ...sectionRaw };
+    const removed = [];
+    for (const id of idSet) {
+      if (Object.prototype.hasOwnProperty.call(nextSection, id)) {
+        delete nextSection[id];
+        removed.push(id);
+      }
+    }
+    if (removed.length === 0) continue;
+    doc[target.section] = nextSection;
+    writeJsonObject(path.join(projectDir, target.fileName), doc);
+    reports.push({ targetKey: key, fileName: target.fileName, removed });
+  }
+  return reports;
+}
+
 function save(projectDir, selectedIds, targetKeys, state, registry) {
   const selected = new Set(selectedIds);
   const reports = [];
@@ -96,4 +120,5 @@ module.exports = {
   readJsonObject,
   readState,
   save,
+  removeFromProject,
 };

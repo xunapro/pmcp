@@ -44,7 +44,7 @@ pmcp register    # 把当前项目的服务器提升进 ~/.pmcp/registry.json（
 pmcp lang zh     # 界面切换为中文（默认英文）
 ```
 
-若项目内既没有 `.mcp.json` 也没有 `opencode.json`，`pmcp` 会询问要创建哪种（些）文件。注册表之外的服务器永远原样保留、不受影响。
+若项目内既没有 `.mcp.json` 也没有 `opencode.json`，`pmcp` 会询问要创建哪种（些）文件；当项目已有受管文件时，`pmcp` 仍会询问要写入哪种（些）客户端格式，并预选项目当前已受管的格式。注册表之外的服务器永远原样保留、不受影响。
 
 ## 借助 AI agent 安装与使用
 
@@ -75,6 +75,8 @@ pmcp lang zh     # 界面切换为中文（默认英文）
 | `pmcp` | 对当前目录进行交互式服务器选择 |
 | `pmcp init` | 从 `~/.claude.json` 与 `~/.config/opencode/opencode.json` 初始化/更新 `~/.pmcp/registry.json`。全局文件永远只读；注册表只新增条目、同名差异需逐项确认后才覆盖、从不删除。可重复执行（幂等）。 |
 | `pmcp register` | 与 `init` 方向相反：把**当前项目**的服务器（`.mcp.json` + `opencode.json`）合并进 `~/.pmcp/registry.json`，规则相同（只新增、逐项确认、永不删除、幂等）。若两个项目文件对同一服务器定义不一，`pmcp` 会询问注册哪一份（或跳过）；注册表缺失时提示先运行 `pmcp init`。绝不触碰项目文件与客户端全局文件。 |
+| `pmcp unregister` | 交互式多选从 `~/.pmcp/registry.json` 移除服务器；对当前项目配置文件中已启用的被移除服务器，询问是否同时从项目文件移除。注册表缺失时提示先运行 `pmcp init`。绝不触碰客户端全局文件。 |
+| `pmcp rename [id] [name]` | 修改注册表服务器的显示名称 `name`（`id` 与启动定义不变）。同时提供 `id` 与 `name` 时直接改名；不带参数时交互式列出服务器并提示输入新名称。 |
 | `pmcp lang [en\|zh]` | 查看或设置界面语言（持久化到 `~/.pmcp/settings.json`） |
 | `pmcp --help` / `--version` | 用法 / 版本号，不进入交互 |
 
