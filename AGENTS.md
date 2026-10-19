@@ -35,7 +35,7 @@ pmcp lang zh            # 可选，默认 en
 `pmcp` 主命令是 TTY checkbox 交互，**agent 不要在管道中运行裸 `pmcp`**。程序化场景：
 
 - 改可选列表：编辑 `~/.pmcp/registry.json`（唯一事实源，`pmcp init`/`pmcp register`/`pmcp unregister`/`pmcp rename` 可对其改写，其余流程不改写它）。
-- 改项目启用集：直接编辑项目 `.mcp.json` / `opencode.json` 的 `mcpServers` / `mcp` 段，条目定义用下方生成规则，与 pmcp 落盘结果等价。
+- 改项目启用集：直接编辑项目 `.mcp.json` / `opencode.json` 的 `mcpServers` / `mcp`（旧版）或 `mcp.servers`（新版）段，条目定义用下方生成规则，与 pmcp 落盘结果等价。
 - 非 TTY 下仅这些子命令可安全直接运行：`pmcp --help`、`pmcp --version`、`pmcp lang [en|zh]`、`pmcp init`（差异确认会被取消并视为否）、`pmcp rename <id> <new>`（参数形式，无需交互）。`pmcp register`、`pmcp unregister` 与交互式 `pmcp rename` 属交互依赖命令：非 TTY 下选边/多选/确认全部取消（视为否/跳过），不会写入；程序化增改注册表仍直接编辑 `~/.pmcp/registry.json`。
 
 ## Data files & formats
@@ -51,10 +51,12 @@ pmcp lang zh            # 可选，默认 en
 
 本地形态为 `command` + 可选 `args`/`env`；远程形态为 `url` + `type`（`http` / `sse` / `ws`，采用 Claude Code 词汇保真）。两形态互斥：含 `url` 即远程。旧版双字段条目（含 `claude`/`opencode`）仍可加载，按 `claude` 字段归一、文件不重写。
 
+导入（`pmcp init` / `pmcp register`）时，若本地条目的 `command` 是相对文件路径（含 `/` 或 `\`，或以 `.` / `~` 开头），pmcp 会将其解析为绝对路径——项目条目按项目目录解析、全局条目按用户主目录解析；裸命令名（如 `uvx`、`npx`）保持不变，仍靠 PATH 解析。
+
 落盘生成规则（save 时即时生成，勿在注册表内存双格式）：
 
 - claude 本地 → `{ "command": ..., "args": ..., "env": ... }`（无 `enabled`/`type` 字段）；claude 远程 → `{ "type": "http"|"sse"|"ws", "url": ... }`
-- opencode 本地 → `{ "type": "local", "command": [command, ...args], "environment": ..., "enabled": true }`（`command` 必为数组）；opencode 远程 → `{ "type": "remote", "url": ..., "enabled": true }`（传输类型由 url scheme 在客户端判定）
+- opencode 支持新旧两种布局，pmcp 读取时自动识别、写入时保留文件既有布局（新文件默认新版 `mcp.servers`，并写入 `$schema: "https://opencode.ai/config.json"`）。旧版（`mcp` 下直接按服务器名键控）本地 → `{ "type": "local", "command": [command, ...args], "environment": ..., "enabled": true }`（`command` 必为数组）；旧版远程 → `{ "type": "remote", "url": ..., "enabled": true }`（传输类型由 url scheme 在客户端判定）。新版（`mcp.servers` 下键控）本地 → `{ "type": "local", "command": [command, ...args], "environment": ..., "disabled": false }`；新版远程 → `{ "type": "remote", "url": ..., "disabled": false }`。
 
 `~/.pmcp/settings.json` — `{ "language": "en" | "zh" }`，由 `pmcp lang` 读写；损坏时按 en 继续、不重写。
 

@@ -10,6 +10,56 @@ const CLAUDE_REMOTE_TYPES = ['http', 'streamable-http', 'sse', 'ws'];
 const OPENCODE_LOCAL_TYPES = ['local', 'stdio'];
 const OPENCODE_REMOTE_TYPES = ['remote'];
 
+// OpenCode config layouts.
+//   v1 (legacy): servers are keyed directly under `mcp`, each entry uses `enabled`.
+//   v2 (latest): servers are keyed under `mcp.servers`, each entry uses `disabled`.
+// pmcp reads both and preserves the layout it found when writing a file back.
+const OPENCODE_V2_SECTION = 'servers';
+// Reserved keys at the `mcp` level that are never server definitions.
+const OPENCODE_RESERVED_MCP_KEYS = ['timeout', OPENCODE_V2_SECTION];
+
+// Detect which OpenCode mcp layout a parsed config document uses. A document with no
+// `mcp` section (or a fresh document) is treated as the latest v2 layout.
+function opencodeLayout(doc) {
+  const mcp = doc && doc.mcp;
+  if (mcp && typeof mcp === 'object' && !Array.isArray(mcp)) {
+    if (mcp[OPENCODE_V2_SECTION] && typeof mcp[OPENCODE_V2_SECTION] === 'object' && !Array.isArray(mcp[OPENCODE_V2_SECTION])) return 'v2';
+    return 'v1';
+  }
+  return 'v2';
+}
+
+// Extract the object holding OpenCode server definitions from a parsed doc, or null.
+// For the legacy v1 layout the reserved `mcp` keys (timeout, servers) are excluded.
+function opencodeServers(doc) {
+  const mcp = doc && doc.mcp;
+  if (!mcp || typeof mcp !== 'object' || Array.isArray(mcp)) return null;
+  if (mcp[OPENCODE_V2_SECTION] && typeof mcp[OPENCODE_V2_SECTION] === 'object' && !Array.isArray(mcp[OPENCODE_V2_SECTION])) return mcp[OPENCODE_V2_SECTION];
+  const out = {};
+  for (const [id, def] of Object.entries(mcp)) {
+    if (OPENCODE_RESERVED_MCP_KEYS.includes(id)) continue;
+    out[id] = def;
+  }
+  return out;
+}
+
+// Write a server container back into an OpenCode doc, preserving the detected layout
+// and any reserved `mcp` keys. Mutates and returns doc.
+function setOpencodeServers(doc, servers) {
+  const layout = opencodeLayout(doc);
+  const mcp = doc.mcp && typeof doc.mcp === 'object' && !Array.isArray(doc.mcp) ? doc.mcp : {};
+  if (layout === 'v2') {
+    doc.mcp = { ...mcp, [OPENCODE_V2_SECTION]: servers };
+  } else {
+    const reserved = {};
+    for (const k of OPENCODE_RESERVED_MCP_KEYS) {
+      if (Object.prototype.hasOwnProperty.call(mcp, k)) reserved[k] = mcp[k];
+    }
+    doc.mcp = { ...reserved, ...servers };
+  }
+  return doc;
+}
+
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
@@ -82,13 +132,18 @@ function canonicalToClaude(entry) {
   return def;
 }
 
-function canonicalToOpencode(entry) {
+// `layout` selects the OpenCode flag field: 'v1' uses `enabled: true`, 'v2' uses
+// `disabled: false` (the v2 default is enabled, and an explicit value overrides any
+// pre-existing `disabled: true`). When omitted, defaults to the legacy v1 shape.
+function canonicalToOpencode(entry, layout) {
+  const v2 = layout === 'v2';
+  const flag = v2 ? { disabled: false } : { enabled: true };
   if (isRemoteEntry(entry)) {
-    const def = { type: 'remote', url: entry.url, enabled: true };
+    const def = { type: 'remote', url: entry.url, ...flag };
     if (entry.headers && typeof entry.headers === 'object') def.headers = clone(entry.headers);
     return def;
   }
-  const def = { type: 'local', command: [entry.command, ...(Array.isArray(entry.args) ? entry.args : [])], enabled: true };
+  const def = { type: 'local', command: [entry.command, ...(Array.isArray(entry.args) ? entry.args : [])], ...flag };
   if (entry.env && typeof entry.env === 'object') def.environment = clone(entry.env);
   return def;
 }
@@ -133,4 +188,7 @@ module.exports = {
   isRemoteEntry,
   registryEntryToFile,
   sameLaunchDef,
+  opencodeLayout,
+  opencodeServers,
+  setOpencodeServers,
 };

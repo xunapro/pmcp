@@ -9,7 +9,7 @@ Dynamically manage **project-level** MCP server configs. Instead of every projec
 | Client | Project file | Section |
 | --- | --- | --- |
 | Claude Code | `.mcp.json` | `mcpServers` |
-| OpenCode | `opencode.json` | `mcp` |
+| OpenCode | `opencode.json` | `mcp` (legacy) / `mcp.servers` (latest) |
 
 ## Requirements
 
@@ -110,7 +110,9 @@ Exit codes: `0` success or user cancel (cancel never writes files); `1` fatal (e
 
 Each entry stores exactly one canonical launch definition in one of two shapes: **local** (`command` + optional `args`/`env`) or **remote** (`url` + `type`, where `type` is `http`/`sse`/`ws` using the Claude Code vocabulary). Client-specific formats are generated at save time.
 
-On save for a local entry: Claude Code gets `{ "command": "uvx", "args": ["mcp-server-git"], "env": {...} }`; OpenCode gets `{ "type": "local", "command": ["uvx", "mcp-server-git"], "environment": {...}, "enabled": true }`. For a remote entry: Claude Code gets `{ "type": "http", "url": ... }` (keeping `type` as stored); OpenCode gets `{ "type": "remote", "url": ..., "enabled": true }`. Legacy entries with per-client `claude`/`opencode` fields are still loaded (normalized from the `claude` field) without rewriting the file. You may also edit this file by hand — only `pmcp init` (and its reverse `pmcp register`) can rewrite it; `pmcp init` is the only command that creates it.
+On import (`pmcp init` / `pmcp register`), if a local entry's `command` is a relative filesystem path (contains `/` or `\`, or starts with `.` or `~`), pmcp resolves it to an absolute path against the source directory — the project directory for `register`, the user's home for `init`/global configs. Bare command names (e.g. `uvx`, `npx`) are left as-is so they resolve via PATH.
+
+On save for a local entry: Claude Code gets `{ "command": "uvx", "args": ["mcp-server-git"], "env": {...} }`; OpenCode gets `{ "type": "local", "command": ["uvx", "mcp-server-git"], "environment": {...}, "enabled": true }` in the legacy layout, or `{ "type": "local", "command": ["uvx", "mcp-server-git"], "environment": {...}, "disabled": false }` in the latest `mcp.servers` layout. For a remote entry: Claude Code gets `{ "type": "http", "url": ... }` (keeping `type` as stored); OpenCode gets `{ "type": "remote", "url": ..., "enabled": true }` (legacy) or `{ "type": "remote", "url": ..., "disabled": false }` (latest). `pmcp` reads both OpenCode layouts automatically and preserves the layout it finds when it writes a file back; a brand-new `opencode.json` is written in the latest `mcp.servers` layout (with `"$schema": "https://opencode.ai/config.json"`). Legacy entries with per-client `claude`/`opencode` fields are still loaded (normalized from the `claude` field) without rewriting the file. You may also edit this file by hand — only `pmcp init` (and its reverse `pmcp register`) can rewrite it; `pmcp init` is the only command that creates it.
 
 ## Limitations
 

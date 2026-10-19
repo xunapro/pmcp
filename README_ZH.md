@@ -7,7 +7,7 @@
 | 客户端 | 项目文件 | 配置段 |
 | --- | --- | --- |
 | Claude Code | `.mcp.json` | `mcpServers` |
-| OpenCode | `opencode.json` | `mcp` |
+| OpenCode | `opencode.json` | `mcp`（旧版）/ `mcp.servers`（新版） |
 
 ## 环境要求
 
@@ -108,7 +108,9 @@ pmcp lang zh     # 界面切换为中文（默认英文）
 
 每个条目只保存**一份统一（canonical）启动定义**，含两形态：**本地**（`command` + 可选 `args`/`env`）与**远程**（`url` + `type`，`type` 为 `http`/`sse`/`ws`，采用 Claude Code 词汇）。面向各客户端的专属格式在写入时即时生成。
 
-保存本地条目时：Claude Code 得到 `{ "command": "uvx", "args": ["mcp-server-git"], "env": {...} }`；OpenCode 得到 `{ "type": "local", "command": ["uvx", "mcp-server-git"], "environment": {...}, "enabled": true }`。保存远程条目时：Claude Code 得到 `{ "type": "http", "url": ... }`（按存储的 `type` 原样写出）；OpenCode 得到 `{ "type": "remote", "url": ..., "enabled": true }`。历史的双格式条目（含 `claude`/`opencode` 字段）仍可加载，按 `claude` 字段归一化，且不重写文件。你也可以手工编辑该文件——只有 `pmcp init`（及其反向 `pmcp register`）可以改写它，且只有 `pmcp init` 能创建它。
+导入（`pmcp init` / `pmcp register`）时，若本地条目的 `command` 是相对文件路径（含 `/` 或 `\`，或以 `.` / `~` 开头），pmcp 会将其解析为绝对路径——`register` 按项目目录解析、`init`/全局配置按用户主目录解析；裸命令名（如 `uvx`、`npx`）保持不变，仍靠 PATH 解析。
+
+保存本地条目时：Claude Code 得到 `{ "command": "uvx", "args": ["mcp-server-git"], "env": {...} }`；OpenCode 在旧版布局得到 `{ "type": "local", "command": ["uvx", "mcp-server-git"], "environment": {...}, "enabled": true }`，在新版 `mcp.servers` 布局得到 `{ "type": "local", "command": ["uvx", "mcp-server-git"], "environment": {...}, "disabled": false }`。保存远程条目时：Claude Code 得到 `{ "type": "http", "url": ... }`（按存储的 `type` 原样写出）；OpenCode 在旧版布局得到 `{ "type": "remote", "url": ..., "enabled": true }`，在新版布局得到 `{ "type": "remote", "url": ..., "disabled": false }`。`pmcp` 读取 OpenCode 时自动识别新旧两种布局，写回时保留文件既有布局；全新创建的 `opencode.json` 采用新版 `mcp.servers` 布局（并写入 `"$schema": "https://opencode.ai/config.json"`）。历史的双格式条目（含 `claude`/`opencode` 字段）仍可加载，按 `claude` 字段归一化，且不重写文件。你也可以手工编辑该文件——只有 `pmcp init`（及其反向 `pmcp register`）可以改写它，且只有 `pmcp init` 能创建它。
 
 ## 已知限制
 

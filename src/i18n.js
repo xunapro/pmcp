@@ -159,12 +159,17 @@ function settingsFilePath(home) {
   return path.join(home, '.pmcp', 'settings.json');
 }
 
+// Some editors write a UTF-8 BOM; JSON.parse rejects it, so strip a leading one.
+function stripBom(text) {
+  return typeof text === 'string' && text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+}
+
 function resolveLanguage(home, notices) {
   const file = settingsFilePath(home);
   currentLang = 'en';
   let raw;
   try {
-    raw = fs.readFileSync(file, 'utf8');
+    raw = stripBom(fs.readFileSync(file, 'utf8'));
   } catch {
     return 'en';
   }
@@ -183,7 +188,7 @@ function setLanguage(home, code) {
   const file = settingsFilePath(home);
   let doc = {};
   try {
-    const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
+    const parsed = JSON.parse(stripBom(fs.readFileSync(file, 'utf8')));
     if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) doc = parsed;
   } catch {
     doc = {};

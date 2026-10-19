@@ -2,15 +2,16 @@
 
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 
 const { t } = require('./i18n');
-const { toCanonicalFromClaude, toCanonicalFromOpencode, sameLaunchDef, TARGETS } = require('./model');
-const { readJsonObject } = require('./persistence');
+const { toCanonicalFromClaude, toCanonicalFromOpencode, sameLaunchDef, TARGETS, opencodeServers } = require('./model');
+const { readJsonObject, stripBom } = require('./persistence');
 
 function readGlobalFile(filePath, notices) {
   let raw;
   try {
-    raw = fs.readFileSync(filePath, 'utf8');
+    raw = stripBom(fs.readFileSync(filePath, 'utf8'));
   } catch (err) {
     if (err.code === 'ENOENT') return null;
     notices.push(t('global.readFail', { path: filePath, message: err.message }));
@@ -25,6 +26,34 @@ function readGlobalFile(filePath, notices) {
     notices.push(t('global.invalidJson', { path: filePath }));
     return null;
   }
+}
+
+// A "bare command" is a single token that relies on PATH lookup (e.g. `uvx`, `npx`).
+// It has no path separator and does not start with `.` or `~`.
+function isBareCommand(cmd) {
+  return (
+    typeof cmd === 'string' &&
+    cmd.length > 0 &&
+    !cmd.startsWith('.') &&
+    !cmd.startsWith('~') &&
+    !cmd.includes('/') &&
+    !cmd.includes('\\')
+  );
+}
+
+// Resolve a relative filesystem-path `command` to an absolute path against `baseDir`.
+// Bare command names are left untouched so they resolve via PATH; `~`-prefixed paths
+// expand against the user's home. Absolute paths are returned unchanged.
+function absolutizeCommand(cmd, baseDir) {
+  if (typeof cmd !== 'string' || cmd.length === 0) return cmd;
+  if (path.isAbsolute(cmd)) return cmd;
+  if (isBareCommand(cmd)) return cmd;
+  if (cmd.startsWith('~')) {
+    const rest = cmd.slice(1);
+    if (rest.startsWith('/') || rest.startsWith('\\')) return path.join(os.homedir(), rest.slice(1));
+    return os.homedir();
+  }
+  return path.resolve(baseDir, cmd);
 }
 
 function collectGlobalEntries(home, notices) {
@@ -42,7 +71,7 @@ function collectGlobalEntries(home, notices) {
   }
   const ocCfg = readGlobalFile(path.join(home, '.config', 'opencode', 'opencode.json'), notices);
   if (ocCfg !== null) available++;
-  const ocSection = ocCfg && ocCfg.mcp;
+  const ocSection = ocCfg ? opencodeServers(ocCfg) : null;
   if (ocSection && typeof ocSection === 'object' && !Array.isArray(ocSection)) {
     for (const [id, def] of Object.entries(ocSection)) {
       if (!byId.has(id)) byId.set(id, {});
@@ -61,6 +90,9 @@ function collectGlobalEntries(home, notices) {
     }
     entries.push({ id, name: id, description: t('global.importedDesc'), ...canonical });
   }
+  for (const entry of entries) {
+    if (typeof entry.command === 'string') entry.command = absolutizeCommand(entry.command, home);
+  }
   return { entries, available, unconvertible };
 }
 
@@ -70,7 +102,7 @@ function collectProjectEntries(projectDir, notices) {
   for (const [key, target] of Object.entries(TARGETS)) {
     const parsed = readJsonObject(path.join(projectDir, target.fileName), target.fileName);
     if (parsed === null) continue;
-    const section = parsed[target.section];
+    const section = key === 'opencode' ? opencodeServers(parsed) : parsed[target.section];
     if (section && typeof section === 'object' && !Array.isArray(section)) {
       for (const [id, def] of Object.entries(section)) {
         if (!byId.has(id)) byId.set(id, {});
@@ -116,6 +148,9 @@ function collectProjectEntries(projectDir, notices) {
       notices.push(t('register.skipUnconvertible', { id }));
     }
   }
+  for (const entry of entries) {
+    if (typeof entry.command === 'string') entry.command = absolutizeCommand(entry.command, projectDir);
+  }
   return { entries, conflicts, unconvertible };
 }
 
@@ -123,4 +158,5 @@ module.exports = {
   readGlobalFile,
   collectGlobalEntries,
   collectProjectEntries,
+  absolutizeCommand,
 };

@@ -4,7 +4,12 @@ const fs = require('fs');
 const path = require('path');
 
 const { t } = require('./i18n');
-const { TARGETS, canonicalToClaude, canonicalToOpencode } = require('./model');
+const { TARGETS, canonicalToClaude, canonicalToOpencode, opencodeServers, opencodeLayout, setOpencodeServers } = require('./model');
+
+// Some editors write a UTF-8 BOM; JSON.parse rejects it, so strip a leading one.
+function stripBom(text) {
+  return typeof text === 'string' && text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+}
 
 function writeJsonObject(filePath, doc) {
   const content = JSON.stringify(doc, null, 2) + '\n';
@@ -15,7 +20,7 @@ function writeJsonObject(filePath, doc) {
 function readJsonObject(filePath, fileName) {
   let raw;
   try {
-    raw = fs.readFileSync(filePath, 'utf8');
+    raw = stripBom(fs.readFileSync(filePath, 'utf8'));
   } catch (err) {
     if (err.code === 'ENOENT') return null;
     throw new Error(t('project.readFail', { name: fileName, message: err.message }));
@@ -42,7 +47,7 @@ function readState(projectDir, registry) {
     if (parsed === null) continue;
     managed.push(key);
     data[key] = parsed;
-    const section = parsed[target.section];
+    const section = key === 'opencode' ? opencodeServers(parsed) : parsed[target.section];
     if (section && typeof section === 'object' && !Array.isArray(section)) {
       for (const entry of registry) {
         if (Object.prototype.hasOwnProperty.call(section, entry.id)) enabled.add(entry.id);
@@ -58,7 +63,8 @@ function removeFromProject(projectDir, ids, state) {
   for (const key of state.managed) {
     const target = TARGETS[key];
     const doc = state.data[key];
-    const sectionRaw = doc[target.section];
+    const isOpencode = key === 'opencode';
+    const sectionRaw = isOpencode ? opencodeServers(doc) : doc[target.section];
     if (!sectionRaw || typeof sectionRaw !== 'object' || Array.isArray(sectionRaw)) continue;
     const nextSection = { ...sectionRaw };
     const removed = [];
@@ -69,7 +75,11 @@ function removeFromProject(projectDir, ids, state) {
       }
     }
     if (removed.length === 0) continue;
-    doc[target.section] = nextSection;
+    if (isOpencode) {
+      setOpencodeServers(doc, nextSection);
+    } else {
+      doc[target.section] = nextSection;
+    }
     writeJsonObject(path.join(projectDir, target.fileName), doc);
     reports.push({ targetKey: key, fileName: target.fileName, removed });
   }
@@ -85,16 +95,15 @@ function save(projectDir, selectedIds, targetKeys, state, registry) {
     const existed = prevDoc !== null && prevDoc !== undefined;
     if (!existed && selected.size === 0) continue;
     const doc = existed ? prevDoc : {};
-    const prevSectionRaw = doc[target.section];
-    const prevSection =
-      prevSectionRaw && typeof prevSectionRaw === 'object' && !Array.isArray(prevSectionRaw)
-        ? prevSectionRaw
-        : {};
+    const isOpencode = key === 'opencode';
+    const ocLayout = isOpencode ? opencodeLayout(doc) : null;
+    const prevRaw = isOpencode ? opencodeServers(doc) : doc[target.section];
+    const prevSection = prevRaw && typeof prevRaw === 'object' && !Array.isArray(prevRaw) ? prevRaw : {};
     const nextSection = { ...prevSection };
     const removed = [];
     for (const entry of registry) {
       if (selected.has(entry.id)) {
-        const generated = key === 'claude' ? canonicalToClaude(entry) : canonicalToOpencode(entry);
+        const generated = isOpencode ? canonicalToOpencode(entry, ocLayout) : canonicalToClaude(entry);
         const existingDef = nextSection[entry.id] && typeof nextSection[entry.id] === 'object' ? nextSection[entry.id] : {};
         nextSection[entry.id] = { ...existingDef, ...generated };
       } else if (Object.prototype.hasOwnProperty.call(nextSection, entry.id)) {
@@ -102,7 +111,12 @@ function save(projectDir, selectedIds, targetKeys, state, registry) {
         removed.push(entry.id);
       }
     }
-    doc[target.section] = nextSection;
+    if (isOpencode) {
+      if (!existed) doc.$schema = 'https://opencode.ai/config.json';
+      setOpencodeServers(doc, nextSection);
+    } else {
+      doc[target.section] = nextSection;
+    }
     writeJsonObject(path.join(projectDir, target.fileName), doc);
     reports.push({
       targetKey: key,
@@ -118,6 +132,7 @@ function save(projectDir, selectedIds, targetKeys, state, registry) {
 module.exports = {
   writeJsonObject,
   readJsonObject,
+  stripBom,
   readState,
   save,
   removeFromProject,

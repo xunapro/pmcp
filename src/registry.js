@@ -6,8 +6,8 @@ const prompts = require('prompts');
 
 const { t, resolveLanguage } = require('./i18n');
 const { toCanonicalFromClaude, toCanonicalFromOpencode, registryEntryToFile, sameLaunchDef } = require('./model');
-const { writeJsonObject, readState, removeFromProject } = require('./persistence');
-const { readGlobalFile, collectGlobalEntries, collectProjectEntries } = require('./sources');
+const { writeJsonObject, readState, removeFromProject, stripBom } = require('./persistence');
+const { readGlobalFile, collectGlobalEntries, collectProjectEntries, absolutizeCommand } = require('./sources');
 
 function registryFilePath(home) {
   return path.join(home, '.pmcp', 'registry.json');
@@ -41,7 +41,7 @@ function loadRegistry(home, notices) {
   const filePath = registryFilePath(home);
   let raw = null;
   try {
-    raw = fs.readFileSync(filePath, 'utf8');
+    raw = stripBom(fs.readFileSync(filePath, 'utf8'));
   } catch (err) {
     if (err.code === 'ENOENT') return null;
     throw new Error(t('registry.readFail', { path: filePath, message: err.message }));
@@ -122,9 +122,13 @@ async function registerToRegistry(projectDir, home, selectSide) {
   for (const c of collected.conflicts) {
     const choice = typeof selectSide === 'function' ? await selectSide(c.id) : null;
     if (choice === 'claude') {
-      candidates.push({ id: c.id, name: c.id, description: t('register.importedDesc'), ...toCanonicalFromClaude(c.claude) });
+      const canon = toCanonicalFromClaude(c.claude);
+      if (canon && typeof canon.command === 'string') canon.command = absolutizeCommand(canon.command, projectDir);
+      candidates.push({ id: c.id, name: c.id, description: t('register.importedDesc'), ...canon });
     } else if (choice === 'opencode') {
-      candidates.push({ id: c.id, name: c.id, description: t('register.importedDesc'), ...toCanonicalFromOpencode(c.opencode) });
+      const canon = toCanonicalFromOpencode(c.opencode);
+      if (canon && typeof canon.command === 'string') canon.command = absolutizeCommand(canon.command, projectDir);
+      candidates.push({ id: c.id, name: c.id, description: t('register.importedDesc'), ...canon });
     } else {
       conflictsSkipped++;
     }
